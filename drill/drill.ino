@@ -5,7 +5,7 @@
 
 byte WOL_packet[102];                                           // the WOL packet
 
-IPAddress ip(192,168,1,2); //@@@@@@@@
+IPAddress ip(192,168,1,2); //@@@@@@@@ this is to be deleted if connected to a router
 
 byte mac[]{ 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };               // mac address of the ethernet module
 byte PC_mac[]{ 0x60, 0xA4, 0x4C, 0x71, 0x3C, 0x30 };            // mac address of the PC thats going to be waken up
@@ -18,7 +18,7 @@ EthernetUDP Udp;                                                // udp stuff
 
 int8_t answer;                                                  // its a temp variable to get the response from the modem
 int x;                                                          // its basicly used left and right
-int onModulePin = 2;                                          // pins and stuff
+int onModulePin = 2;                                            // pins and stuff
 char temp_string[30];                                           // sent to save messages temprary
 char phone_number[] = "2********";                              // The number it will send stuff to if needed
 char pin[] = "2021";                                            // the pin for the sim card
@@ -27,25 +27,25 @@ char pin[] = "2021";                                            // the pin for t
 
 
 int8_t sendATcommand ( char* ATcommand, char* expected_answer, unsigned int timeout ){
-    uint8_t x=0,  answer=0;
-    char response[100];
-    unsigned long previous;
-    memset( response, '\0', 100 );
-    delay( 100 );
-    while( Serial.available() > 0 ) Serial.read(); 
-    Serial.println(ATcommand); 
-    x = 0;
-    previous = millis();
-    do{
-      if( Serial.available() != 0 ){    
-        response[x] = Serial.read();
-        x++;
-        if ( strstr( response, expected_answer ) != NULL )    {
-          answer = 1;
-        }
+  uint8_t x=0,  answer=0;
+  char response[100];
+  unsigned long previous;
+  memset( response, '\0', 100 );
+  delay( 100 );
+  while( Serial.available() > 0 ) Serial.read(); 
+  Serial.println(ATcommand); 
+  x = 0;
+  previous = millis();
+  do{
+    if( Serial.available() != 0 ){    
+      response[x] = Serial.read();
+      x++;
+      if ( strstr( response, expected_answer ) != NULL )    {
+        answer = 1;
       }
-    }while( ( answer == 0 ) && ( ( millis() - previous ) < timeout ) ); 
-    return answer;
+    }
+  }while( ( answer == 0 ) && ( ( millis() - previous ) < timeout ) ); 
+  return answer;
 }
 
 
@@ -78,7 +78,7 @@ void power_on() {
   
   check = sendATcommand( "AT", "OK", 2000);                     // sends AT to the modem and waits for an OK answer
   if ( check == 0 ) {
-    digitalWrite( onModulePin, HIGH );                        // if no OK then it resets the modem
+    digitalWrite( onModulePin, HIGH );                          // if no OK then it resets the modem
     delay( 3000 );
     digitalWrite( onModulePin, LOW );
 
@@ -91,7 +91,7 @@ void power_on() {
 
 void setup() {
 
-  Ethernet.begin( mac, ip );                                        // gets an ip adress from the dhcp server
+  Ethernet.begin( mac, ip );                                    // sets mac and ip and stuff for the etherent module
   Udp.begin( localPort );                                       // more udp stuff
 
   memset( WOL_packet, 0, 102 );                                 // sets all WOL_packets values to 0
@@ -108,6 +108,7 @@ void setup() {
   }
 
   pinMode( onModulePin, OUTPUT );
+  pinMode( 8, OUTPUT );                                         // the pin that will control the RELAY ( the relay is connected to the power button of the pc )
   Serial.begin( 115200 );
   
   power_on();
@@ -145,10 +146,20 @@ void loop() {
         }
       }
     } while ( answer == 0 );
-
-    if ( strstr( SMS, "PC ON" ) != NULL ) {
+    
+    if ( strstr( SMS, "BACKUP_PC_ON" ) != NULL ) {
+      digitalWrite( 8, HIGH );
+      delay( 1000 );
+      digitalWrite( 8, LOW ); 
+    }
+    if ( strstr( SMS, "PC_ON" ) != NULL ) {
       send_WOL();
       delay( 1000 );
+    }
+    if ( strstr( SMS, "FORCE_SHUT_DOWN" ) != NULL ) {
+      digitalWrite( 8, HIGH );
+      delay( 15000 );
+      digitalWrite( 8, LOW );
     }
     
     while( Serial.available() > 0 ) Serial.read();
