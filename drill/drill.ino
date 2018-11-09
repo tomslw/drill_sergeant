@@ -151,12 +151,10 @@ void loop() {
       digitalWrite( 8, HIGH );
       delay( 1000 );
       digitalWrite( 8, LOW ); 
-    }
-    if ( strstr( SMS, "PC_ON" ) != NULL ) {
+    } else if ( strstr( SMS, "PC_ON" ) != NULL ) {
       send_WOL();
       delay( 1000 );
-    }
-    if ( strstr( SMS, "FORCE_SHUT_DOWN" ) != NULL ) {
+    } else if ( strstr( SMS, "FORCE_SHUT_DOWN" ) != NULL ) {
       digitalWrite( 8, HIGH );
       delay( 15000 );
       digitalWrite( 8, LOW );
