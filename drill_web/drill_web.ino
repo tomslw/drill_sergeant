@@ -7,7 +7,7 @@
 
 byte WOL_packet[102];                                           // the WOL packet
 
-byte mac[] { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };              // mac address of the ethernet module
+byte mac[] { 0x90, 0xA2, 0xDA, 0x00, 0x2D, 0xA1 };              // mac address of the ethernet module
 byte PC_mac[] { 0x60, 0xA4, 0x4C, 0x71, 0x3C, 0x30 };           // mac address of the PC thats going to be waken up
 
 byte brodcast_address[] = { 255, 255, 255, 255 };               // brocast address   - might need to change later -
@@ -166,47 +166,51 @@ void setup() {
 
 
 void loop() {
+  static unsigned long modem_timer;
+  unsigned long clok = millis();
   wdt_reset();
   Ethernet.maintain();                                          // renews the dhcp address if needed
   EthernetClient client = server.available();
   
   if (!client) {
-    wdt_reset();
-    char SMS[200];
-    memset( SMS, 0, 200 );
-    x = 0;
-    sendATcommand( "AT", "OK", 10000 );
-    answer = sendATcommand( "AT+CMGR=1", "+CMGR:", 2000 );
-    if ( answer == 1 ) {
-      answer = 0;
-      while ( Serial.available() == 0 );
-      do {
-        if ( Serial.available() > 0 ) {
-          SMS[x] = Serial.read();
-          x++;
-          if ( strstr( SMS, "OK" ) != NULL ) {
-            answer = 1;
+    if ( modem_timer < clok ) {
+      wdt_reset();
+      char SMS[200];
+      memset( SMS, 0, 200 );
+      x = 0;
+      sendATcommand( "AT", "OK", 10000 );
+      answer = sendATcommand( "AT+CMGR=1", "+CMGR:", 2000 );
+      if ( answer == 1 ) {
+        answer = 0;
+        while ( Serial.available() == 0 );
+        do {
+          if ( Serial.available() > 0 ) {
+            SMS[x] = Serial.read();
+            x++;
+            if ( strstr( SMS, "OK" ) != NULL ) {
+              answer = 1;
+            }
           }
+        } while ( answer == 0 );
+    
+        if ( strstr( SMS, "BACKUP_PC_ON" ) != NULL ) {
+          digitalWrite( 8, HIGH );
+          delay( 1000 );
+          digitalWrite( 8, LOW );
+        } else if ( strstr( SMS, "PC_ON" ) != NULL ) {
+          send_WOL();
+          delay( 1000 );
+        } else if ( strstr( SMS, "FORCE_SHUT_DOWN" ) != NULL ) {
+          wdt_disable();
+          digitalWrite( 8, HIGH );
+          delay( 15000 );
+          digitalWrite( 8, LOW );
+          wdt_enable(WDTO_8S);
         }
-      } while ( answer == 0 );
-  
-      if ( strstr( SMS, "BACKUP_PC_ON" ) != NULL ) {
-        digitalWrite( 8, HIGH );
-        delay( 1000 );
-        digitalWrite( 8, LOW );
-      } else if ( strstr( SMS, "PC_ON" ) != NULL ) {
-        send_WOL();
-        delay( 1000 );
-      } else if ( strstr( SMS, "FORCE_SHUT_DOWN" ) != NULL ) {
-        wdt_disable();
-        digitalWrite( 8, HIGH );
-        delay( 15000 );
-        digitalWrite( 8, LOW );
-        wdt_enable(WDTO_8S);
+        while ( 0 == sendATcommand( "AT+CMGD=1,4", "OK", 2000 ) );
+        modem_timer = clok + 5000;
       }
-      while ( 0 == sendATcommand( "AT+CMGD=1,4", "OK", 2000 ) );
-    }
-    delay( 5000 );
+  }
   } else {
     char temp[18];
     myServer.begin (&client);
@@ -215,7 +219,7 @@ void loop() {
         myServer.processIncomingByte ( client.read() );
     }
   
-    myServer.print(F("<h1> Drill sergant </h> <form method=\"post\"> New mac address:<br> <input type=\"text\" name=\"macaddress\" value=\""));
+    myServer.print(F("<h1> Drill sergant </h1> <form method=\"post\"> New mac address:<br> <input type=\"text\" name=\"macaddress\" value=\""));
   
     sprintf( temp, "%X-%X-%X-%X-%X-%X", PC_mac[0], PC_mac[1], PC_mac[2], PC_mac[3], PC_mac[4], PC_mac[5] );
     myServer.print( temp );
