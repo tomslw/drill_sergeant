@@ -32,36 +32,6 @@ class myServerClass : public HTTPserver
 
 myServerClass myServer;
 
-void myServerClass::processPostType (const char * key, const byte flags) {
-  println(F("HTTP/1.1 200 OK"));
-  println(F("Content-Type: text/html\n"
-            "Connection: close\n"
-            "Server: HTTPserver/1.0.0 (Arduino)"));
-  println();   // end of headers
-  println (F("<!DOCTYPE html>\n"
-             "<html>\n"
-             "<head>\n"
-             "<title>Drill Sergant</title>\n"
-             "<style>\n"
-             "body { background-color: lightgrey; font-family:arial; }\n"
-             "</style>\n"
-             "</head>\n"
-             "<body>\n"));
-}
-
-void myServerClass::processPostArgument (const char * key, const char * value, const byte flags)
-  { 
-    if ( memcmp ( key, "mac", 3 ) == 0 ) {
-      sscanf(value,"%hhx-%hhx-%hhx-%hhx-%hhx-%hhx",&PC_mac[0],&PC_mac[1],&PC_mac[2],&PC_mac[3],&PC_mac[4],&PC_mac[5]);
-    }
-
-    if ( memcmp ( key, "phone", 5 ) == 0){
-      for( int i = 0; i < 8; i++ ) {
-        pho[i] = value[i];
-      }
-    }
-  }
-
 int8_t sendATcommand ( char* ATcommand, char* expected_answer, unsigned int timeout ) {
   uint8_t x = 0,  answer = 0;
   char response[100];
@@ -135,6 +105,60 @@ void power_on() {
   sendATcommand( "AT+CMGF=1", "OK", 1000 );                     // sets SMS mode to stuff
   sendATcommand( "AT+CPMS=\"SM\",\"SM\",\"SM\"", "OK", 1000 );  // selects memory for sms stuff
 }
+
+
+void myServerClass::processPostType (const char * key, const byte flags) {
+  println(F("HTTP/1.1 200 OK"));
+  println(F("Content-Type: text/html\n"
+            "Connection: close\n"
+            "Server: HTTPserver/1.0.0 (Arduino)"));
+  println();   // end of headers
+  println (F("<!DOCTYPE html>\n"
+             "<html>\n"
+             "<head>\n"
+             "<title>Drill Sergant</title>\n"
+             "<style>\n"
+             "body { background-color: lightgrey; font-family:arial; }\n"
+             "</style>\n"
+             "</head>\n"
+             "<body>\n"));
+}
+
+void myServerClass::processPostArgument (const char * key, const char * value, const byte flags)
+  { 
+    if ( memcmp ( key, "mac", 3 ) == 0 ) {
+      sscanf(value,"%hhx-%hhx-%hhx-%hhx-%hhx-%hhx",&PC_mac[0],&PC_mac[1],&PC_mac[2],&PC_mac[3],&PC_mac[4],&PC_mac[5]);
+      
+      memset( WOL_packet, 0, 102 );                                 // remakes the wol packet if a new mac address is asigned
+      
+      for ( int i = 0; i < 6; i++ ) {
+        WOL_packet[1] = 0xFF;
+      }
+      int o = 6;
+      for ( int b = 0; b < 16; b++ ) {
+        for ( int i = 0; i < 6; i++ ) {
+          WOL_packet[o] = PC_mac[i];
+          o++;
+        }
+      }
+    }
+
+    if ( memcmp ( key, "phone", 5 ) == 0 ) {
+      for( int i = 0; i < 8; i++ ) {
+        pho[i] = value[i];
+      }
+    }
+    if ( memcmp ( key, "pc_on", 5 ) == 0 ) {
+      send_WOL();
+    }
+    if ( memcmp ( key, "force_shut_down", 15 ) == 0 ){
+      wdt_disable();
+      digitalWrite( 8, HIGH );
+      delay( 15000 );
+      digitalWrite( 8, LOW );
+      wdt_enable(WDTO_8S);
+    }
+  }
 
 
 void setup() {
@@ -219,16 +243,18 @@ void loop() {
         myServer.processIncomingByte ( client.read() );
     }
   
-    myServer.print(F("<h1> Drill sergant </h1> <form method=\"post\"> New mac address:<br> <input type=\"text\" name=\"macaddress\" value=\""));
+    myServer.print(F("<h1> Drill sergant </h1> <form method=\"post\"> New mac address to which send the WOL packet:<br> <input type=\"text\" name=\"macaddress\" value=\""));
   
     sprintf( temp, "%X-%X-%X-%X-%X-%X", PC_mac[0], PC_mac[1], PC_mac[2], PC_mac[3], PC_mac[4], PC_mac[5] );
     myServer.print( temp );
     
-    myServer.print(F("\"> <br> <br> New phone number to wich send updates: <br> <input type=\"text\" name=\"phonenumber\" value=\" "));
+    myServer.print(F("\"> <br> <br> New phone number to which send updates: <br> <input type=\"text\" name=\"phonenumber\" value=\" "));
     for ( int i = 0; i < 8; i++ ) {
       myServer.print( pho[i] );
     } 
-    myServer.print(F("\"> <br> <input type=submit name=Submit value=\"Process\" > </form> <br> <button> Turn on PC </button> <br> <button> Force shut down </button> <br> <br> "));
+    myServer.print(F("\"> <br> <input type=submit name=Submit value=\"Process\" > </form>"));
+    myServer.print(F("<br> <form method=\"post\"><input type=\"hidden\" name=\"pc_on\" value=\"on\"> <input type=\"submit\" value=\"Turn on PC\"></form><form method=\"post\">"));
+    myServer.print(F("<input type=\"hidden\" name=\"force_shut_down\" value=\"off\"> <input type=\"submit\" value=\"Force shut down\"> <br>"));
     myServer.print(F("<p> Status: </p> </body> </html>"));
   
     myServer.flush();
