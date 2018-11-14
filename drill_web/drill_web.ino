@@ -8,7 +8,10 @@
 byte WOL_packet[102];                                           // the WOL packet
 
 byte mac[] { 0x90, 0xA2, 0xDA, 0x00, 0x2D, 0xA1 };              // mac address of the ethernet module
-byte PC_mac[] { 0x60, 0xA4, 0x4C, 0x71, 0x3C, 0x30 };           // mac address of the PC thats going to be waken up
+
+byte PC_mac[6];                                                 // mac address of the PC thats going to be waken up
+
+byte PC_mac_bak[] EEMEM = { 0x60, 0xA4, 0x4C, 0x71, 0x3C, 0x30 };
 
 byte brodcast_address[] = { 255, 255, 255, 255 };               // brocast address   - might need to change later -
 
@@ -20,7 +23,8 @@ int8_t answer;                                                  // its a temp va
 int x;                                                          // its basicly used left and right
 int onModulePin = 2;                                            // pins and stuff
 char temp_string[30];                                           // sent to save messages temprary
-char pho[] = "2********";                              // The number it will send stuff to if needed
+  char pho[9];                                     // The number it will send stuff to if needed
+  char pho_bak[9] EEMEM = "2********";
 char pin[] = "2021";                                            // the pin for the sim card
 EthernetServer server(80);
 
@@ -128,6 +132,8 @@ void myServerClass::processPostArgument (const char * key, const char * value, c
   { 
     if ( memcmp ( key, "mac", 3 ) == 0 ) {
       sscanf(value,"%hhx-%hhx-%hhx-%hhx-%hhx-%hhx",&PC_mac[0],&PC_mac[1],&PC_mac[2],&PC_mac[3],&PC_mac[4],&PC_mac[5]);
+
+      eeprom_update_block ( PC_mac_bak, PC_mac, 6 );
       
       memset( WOL_packet, 0, 102 );                                 // remakes the wol packet if a new mac address is asigned
       
@@ -145,8 +151,15 @@ void myServerClass::processPostArgument (const char * key, const char * value, c
 
     if ( memcmp ( key, "phone", 5 ) == 0 ) {
       for( int i = 0; i < 8; i++ ) {
-        pho[i] = value[i];
+        if ( isdigit( value[i] ) ) {
+          pho[i] = value[i];
+        } else {
+          pho[i] = 'B';
+        }
       }
+      pho[8] = 0x00;
+      
+      eeprom_update_block( pho_bak, pho, 8 );
     }
     if ( memcmp ( key, "pc_on", 5 ) == 0 ) {
       send_WOL();
@@ -180,6 +193,10 @@ void setup() {
       o++;
     }
   }
+
+  eeprom_read_block( PC_mac, PC_mac_bak, 6 );
+
+  eeprom_read_block( pho, pho_bak, 8 );
 
   pinMode( onModulePin, OUTPUT );
   pinMode( 8, OUTPUT );                                         // the pin that will control the RELAY ( the relay is connected to the power button of the pc )
