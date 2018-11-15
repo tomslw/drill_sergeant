@@ -26,6 +26,7 @@ char temp_string[30];                                           // sent to save 
   char pho[9];                                     // The number it will send stuff to if needed
   char pho_bak[9] EEMEM = "2********";
 char pin[] = "2021";                                            // the pin for the sim card
+int tester = 0;
 EthernetServer server(80);
 
 class myServerClass : public HTTPserver
@@ -35,6 +36,7 @@ class myServerClass : public HTTPserver
   };
 
 myServerClass myServer;
+
 
 int8_t sendATcommand ( char* ATcommand, char* expected_answer, unsigned int timeout ) {
   uint8_t x = 0,  answer = 0;
@@ -154,7 +156,7 @@ void myServerClass::processPostArgument (const char * key, const char * value, c
         if ( isdigit( value[i] ) ) {
           pho[i] = value[i];
         } else {
-          pho[i] = 'B';
+          tester = 1;
         }
       }
       pho[8] = 0x00;
@@ -251,7 +253,7 @@ void loop() {
         while ( 0 == sendATcommand( "AT+CMGD=1,4", "OK", 2000 ) );
         modem_timer = clok + 5000;
       }
-  }
+    }
   } else {
     char temp[18];
     myServer.begin (&client);
@@ -259,25 +261,30 @@ void loop() {
       while ( client.available () > 0 && !myServer.done )
         myServer.processIncomingByte ( client.read() );
     }
-  
-    myServer.print(F("<h1> Drill sergant </h1> <form method=\"post\"> New mac address to which send the WOL packet:<br> <input type=\"text\" name=\"macaddress\" value=\""));
-  
-    sprintf( temp, "%X-%X-%X-%X-%X-%X", PC_mac[0], PC_mac[1], PC_mac[2], PC_mac[3], PC_mac[4], PC_mac[5] );
-    myServer.print( temp );
+    if ( tester != 1 ) {
+      myServer.print(F("<h1> Drill sergant </h1> <form method=\"post\"> New mac address to which send the WOL packet:<br> <input type=\"text\" name=\"macaddress\" value=\""));
     
-    myServer.print(F("\"> <br> <br> New phone number to which send updates: <br> <input type=\"text\" name=\"phonenumber\" value=\" "));
-    for ( int i = 0; i < 8; i++ ) {
-      myServer.print( pho[i] );
-    } 
-    myServer.print(F("\"> <br> <input type=submit name=Submit value=\"Process\" > </form>"));
-    myServer.print(F("<br> <form method=\"post\"><input type=\"hidden\" name=\"pc_on\" value=\"on\"> <input type=\"submit\" value=\"Turn on PC\"></form><form method=\"post\">"));
-    myServer.print(F("<input type=\"hidden\" name=\"force_shut_down\" value=\"off\"> <input type=\"submit\" value=\"Force shut down\"> <br>"));
-    myServer.print(F("<p> Status: </p> </body> </html>"));
-  
-    myServer.flush();
-  
-    delay(1);
-  
-    client.stop();
+      sprintf( temp, "%X-%X-%X-%X-%X-%X", PC_mac[0], PC_mac[1], PC_mac[2], PC_mac[3], PC_mac[4], PC_mac[5] );
+      myServer.print( temp );
+      
+      myServer.print(F("\"> <br> <br> New phone number to which send updates: <br> <input type=\"text\" name=\"phonenumber\" value=\" "));
+      for ( int i = 0; i < 8; i++ ) {
+        myServer.print( pho[i] );
+      } 
+      myServer.print(F("\"> <br> <input type=submit name=Submit value=\"Process\" > </form>"));
+      myServer.print(F("<br> <form method=\"post\"><input type=\"hidden\" name=\"pc_on\" value=\"on\"> <input type=\"submit\" value=\"Turn on PC\"></form><form method=\"post\">"));
+      myServer.print(F("<input type=\"hidden\" name=\"force_shut_down\" value=\"off\"> <input type=\"submit\" value=\"Force shut down\"> <br>"));
+      myServer.print(F("<p> Status: </p> </body> </html>"));
+
+    } else {
+      tester = 0;
+      myServer.print(F("<h1>403 no no</h1>"));
+      myServer.print(F( "</body> </html>"));
+    }  
+      myServer.flush();
+    
+      delay(1);
+    
+      client.stop();
   }
 }
