@@ -15,6 +15,8 @@ byte PC_mac_bak[] EEMEM = { 0x60, 0xA4, 0x4C, 0x71, 0x3C, 0x30 };
 
 byte brodcast_address[] = { 255, 255, 255, 255 };               // brocast address   - might need to change later -
 
+byte pin_check_bad EEMEM = 1;                               // this variable will rememer if the pin was entered corectly the first time
+
 const unsigned int localPort = 9;                               // local port
 
 EthernetUDP Udp;                                                // udp stuff
@@ -25,7 +27,8 @@ int onModulePin = 2;                                            // pins and stuf
 char temp_string[30];                                           // sent to save messages temprary
   char pho[9];                                     // The number it will send stuff to if needed
   char pho_bak[9] EEMEM = "2********";
-char pin[] = "2021";                                            // the pin for the sim card
+  char pin[5];                                            // the pin for the sim card
+  char pin_bak[5] EEMEM = "2021";
 int tester = 0;
 EthernetServer server(80);
 
@@ -104,7 +107,10 @@ void power_on() {
   delay( 3000 );
 
   sprintf( temp_string, "AT+CPIN=%s", pin );
-  sendATcommand( temp_string, "OK", 2000 );
+  if ( sendATcommand( temp_string, "OK", 2000 ) == 0 ) {
+    eeprom_update_byte( &pin_check_bad, 1 );
+    return;
+  }
 
   while ( 0 == sendATcommand( "AT+CMGD=1,4", "OK", 2000 ) );
 
@@ -163,6 +169,19 @@ void myServerClass::processPostArgument (const char * key, const char * value, c
       
       eeprom_update_block( pho_bak, pho, 8 );
     }
+    
+    if ( memcmp ( key, "newpin", 5 ) == 0 ) {                  
+      for( int i = 0; i < 4; i++ ) {
+        if ( isdigit( value[i] ) ) {
+          pin[i] = value[i];
+        } else {
+          tester = 1;
+        }
+      }
+      pin[5] = 0x00;
+      
+      eeprom_update_block( pin_bak, pin, 8 );
+    }
     if ( memcmp ( key, "pc_on", 5 ) == 0 ) {
       send_WOL();
     }
@@ -200,11 +219,13 @@ void setup() {
 
   eeprom_read_block( pho, pho_bak, 8 );
 
+  eeprom_read_block( pin, pin_bak, 4 );
+
   pinMode( onModulePin, OUTPUT );
   pinMode( 8, OUTPUT );                                         // the pin that will control the RELAY ( the relay is connected to the power button of the pc )
   Serial.begin( 115200 );
   
-  power_on();
+   if ( eeprom_read_byte( &pin_check_bad ) == 0 ) power_on();
 }
 
 
@@ -215,7 +236,7 @@ void loop() {
   Ethernet.maintain();                                          // renews the dhcp address if needed
   EthernetClient client = server.available();
   
-  if (!client) {
+  if ( !client && eeprom_read_byte( &pin_check_bad ) == 0 ) {
     if ( modem_timer < clok ) {
       wdt_reset();
       char SMS[200];
@@ -261,7 +282,7 @@ void loop() {
       while ( client.available () > 0 && !myServer.done )
         myServer.processIncomingByte ( client.read() );
     }
-    if ( tester != 1 ) {
+    if ( tester != 1 && eeprom_read_byte( &pin_check_bad ) == 0 ) {
       myServer.print(F("<h1> Drill sergant </h1> <form method=\"post\"> New mac address to which send the WOL packet:<br> <input type=\"text\" name=\"macaddress\" value=\""));
     
       sprintf( temp, "%X-%X-%X-%X-%X-%X", PC_mac[0], PC_mac[1], PC_mac[2], PC_mac[3], PC_mac[4], PC_mac[5] );
@@ -276,10 +297,20 @@ void loop() {
       myServer.print(F("<input type=\"hidden\" name=\"force_shut_down\" value=\"off\"> <input type=\"submit\" value=\"Force shut down\"> <br>"));
       myServer.print(F("<p> Status: </p> </body> </html>"));
 
+    } else if ( eeprom_read_byte( &pin_check_bad ) == 1 && tester != 1 ) {
+      myServer.print(F("<h1> Sim pin ERROR </h1>"));
+      myServer.print(F("<forum method=\"post\"> <br> Enter new SIM PIN: <br> <input type=\"text\" name=\"newpin\" value=\""));
+
+      for ( int i = 0; i < 4; i++ ) {
+        myServer.print( pin[i] );
+      } 
+      
+      myServer.print(F("\"> <br> <input type=\"submit\" value=\"Submit\"> </forum> </body> </html>"));
+        
     } else {
       tester = 0;
-      myServer.print(F("<h1>403 no no</h1>"));
-      myServer.print(F( "</body> </html>"));
+      myServer.print(F("<h1>403 you put in stuff wrong</h1>"));
+      myServer.print(F("</body> </html>"));
     }  
       myServer.flush();
     
