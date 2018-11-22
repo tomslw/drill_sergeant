@@ -1,6 +1,4 @@
 
-#include <EthernetUdp.h>
-#include <SPI.h>
 #include <Ethernet.h>
 
 #include <avr/wdt.h>
@@ -15,12 +13,12 @@ byte PC_mac[] { 0x60, 0xA4, 0x4C, 0x71, 0x3C, 0x30 };           // mac address o
 byte brodcast_address[] = { 255, 255, 255, 255 };               // brocast address   - might need to change later -
 
 const unsigned int localPort = 9;                               // local port
+const int udpPort = 9;
 
 EthernetUDP Udp;                                                // udp stuff
 
-int8_t answer;                                                  // its a temp variable to get the response from the modem
-int x;                                                          // its basicly used left and right
-int onModulePin = 2;                                            // pins and stuff
+const int onModulePin = 2;                                            // pins and stuff
+const int relayPin = 8;
 char temp_string[30];                                           // sent to save messages temprary
 char phone_number[] = "2********";                              // The number it will send stuff to if needed
 char pin[] = "2021";                                            // the pin for the sim card
@@ -53,6 +51,7 @@ int8_t sendATcommand ( char* ATcommand, char* expected_answer, unsigned int time
 
 
 void send_msg( char sms_text[] ) {
+  int8_t answer;
 
   while ( ( sendATcommand( "AT+CREG?", "+CREG: 0,1", 500 ) || sendATcommand( "AT+CREG?", "+CREG: 0,5", 500 ) ) == 0);
 
@@ -69,7 +68,7 @@ void send_msg( char sms_text[] ) {
 
 
 void send_WOL() {
-  Udp.beginPacket( brodcast_address, 9 );                       // puts in the brodcast address and port on witch the packet will go out to
+  Udp.beginPacket( brodcast_address, udpPort );                       // puts in the brodcast address and port on witch the packet will go out to
   Udp.write( WOL_packet, 102 );                                 // sends out the packet
   Udp.endPacket();                                              // ends packet
 }
@@ -96,7 +95,7 @@ void power_on() {
   sprintf( temp_string, "AT+CPIN=%s", pin );
   sendATcommand( temp_string, "OK", 2000 );
 
-  while ( 0 == sendATcommand( "AT+CMGD=1,4", "OK", 2000 ) );
+  while ( sendATcommand( "AT+CMGD=1,4", "OK", 2000 ) == 0 );
 
   sendATcommand( "AT+CMGF=1", "OK", 1000 );                     // sets SMS mode to stuff
   sendATcommand( "AT+CPMS=\"SM\",\"SM\",\"SM\"", "OK", 1000 );  // selects memory for sms stuff
@@ -113,7 +112,7 @@ void setup() {
   memset( WOL_packet, 0, 102 );                                 // sets all WOL_packets values to 0
   
   for ( int i = 0; i < 6; i++ ) {                               // sets the first six values of the packet to 0xFF
-    WOL_packet[1] = 0xFF;
+    WOL_packet[i] = 0xFF;
   }
   int o = 6;
   for ( int b = 0; b < 16; b++ ) {                              // puts in the pc's mac address 16 times
@@ -124,7 +123,7 @@ void setup() {
   }
 
   pinMode( onModulePin, OUTPUT );
-  pinMode( 8, OUTPUT );                                         // the pin that will control the RELAY ( the relay is connected to the power button of the pc )
+  pinMode( relayPin, OUTPUT );                                         // the pin that will control the RELAY ( the relay is connected to the power button of the pc )
   Serial.begin( 115200 );
   
   power_on();
@@ -132,6 +131,8 @@ void setup() {
 
 
 void loop() {
+  int x;
+  int8_t answer;
   Ethernet.maintain();                                          // renews the dhcp address if needed
   wdt_reset();
   char SMS[200];
@@ -140,30 +141,28 @@ void loop() {
   sendATcommand( "AT", "OK", 10000 );
   answer = sendATcommand( "AT+CMGR=1", "+CMGR:", 2000 );
   if ( answer == 1 ) {
-    answer = 0;
-    while ( Serial.available() == 0 );
     do {
       if ( Serial.available() > 0 ) {
         SMS[x] = Serial.read();
         x++;
         if ( strstr( SMS, "OK" ) != NULL ) {
-          answer = 1;
+          break;
         }
       }
-    } while ( answer == 0 );
+    } while ( true );
 
     if ( strstr( SMS, "BACKUP_PC_ON" ) != NULL ) {
-      digitalWrite( 8, HIGH );
+      digitalWrite( relayPin, HIGH );
       delay( 1000 );
-      digitalWrite( 8, LOW );
+      digitalWrite( relayPin, LOW );
     } else if ( strstr( SMS, "PC_ON" ) != NULL ) {
       send_WOL();
       delay( 1000 );
     } else if ( strstr( SMS, "FORCE_SHUT_DOWN" ) != NULL ) {
       wdt_disable();
-      digitalWrite( 8, HIGH );
+      digitalWrite( relayPin, HIGH );
       delay( 15000 );
-      digitalWrite( 8, LOW );
+      digitalWrite( relayPin, LOW );
       wdt_enable(WDTO_8S);
     }
     while ( 0 == sendATcommand( "AT+CMGD=1,4", "OK", 2000 ) );
