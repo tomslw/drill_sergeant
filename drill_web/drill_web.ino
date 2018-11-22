@@ -141,7 +141,7 @@ void myServerClass::processPostArgument (const char * key, const char * value, c
     if ( memcmp ( key, "mac", 3 ) == 0 ) {
       sscanf(value,"%hhx-%hhx-%hhx-%hhx-%hhx-%hhx",&PC_mac[0],&PC_mac[1],&PC_mac[2],&PC_mac[3],&PC_mac[4],&PC_mac[5]);
 
-      eeprom_update_block ( PC_mac_bak, PC_mac, 6 );
+      eeprom_update_block ( PC_mac, PC_mac_bak, 6 );
       
       memset( WOL_packet, 0, 102 );                                 // remakes the wol packet if a new mac address is asigned
       
