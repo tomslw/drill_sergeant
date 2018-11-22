@@ -292,7 +292,7 @@ void loop() {
       sprintf( temp, "%X-%X-%X-%X-%X-%X", PC_mac[0], PC_mac[1], PC_mac[2], PC_mac[3], PC_mac[4], PC_mac[5] );
       myServer.print( temp );
       
-      myServer.print(F("\"> <br> <br> New phone number to which send updates: <br> <input type=\"text\" name=\"phonenumber\" value=\" "));
+      myServer.print(F("\"> <br> <br> New phone number to which send updates: <br> <input type=\"text\" name=\"phonenumber\" value=\""));
       for ( int i = 0; i < 8; i++ ) {
         myServer.print( pho[i] );
       } 
