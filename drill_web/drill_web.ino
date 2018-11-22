@@ -167,7 +167,7 @@ void myServerClass::processPostArgument (const char * key, const char * value, c
       }
       pho[8] = 0x00;
       
-      eeprom_update_block( pho_bak, pho, 8 );
+      eeprom_update_block( pho, pho_bak, 8 );
     }
     
     if ( memcmp ( key, "newpin", 5 ) == 0 ) {                  
@@ -178,9 +178,10 @@ void myServerClass::processPostArgument (const char * key, const char * value, c
           tester = 1;
         }
       }
-      pin[5] = 0x00;
+      pin[4] = 0x00;
       
-      eeprom_update_block( pin_bak, pin, 8 );
+      eeprom_update_byte( &pin_check_bad, 0 );
+      eeprom_update_block( pin, pin_bak, 5 );
     }
     if ( memcmp ( key, "pc_on", 5 ) == 0 ) {
       send_WOL();
@@ -220,6 +221,8 @@ void setup() {
   eeprom_read_block( pho, pho_bak, 8 );
 
   eeprom_read_block( pin, pin_bak, 4 );
+  pin[4] = 0x00;
+  
 
   pinMode( onModulePin, OUTPUT );
   pinMode( 8, OUTPUT );                                         // the pin that will control the RELAY ( the relay is connected to the power button of the pc )
@@ -230,6 +233,7 @@ void setup() {
 
 
 void loop() {
+  Serial.println(pin);
   static unsigned long modem_timer;
   unsigned long clok = millis();
   wdt_reset();
@@ -297,15 +301,15 @@ void loop() {
       myServer.print(F("<input type=\"hidden\" name=\"force_shut_down\" value=\"off\"> <input type=\"submit\" value=\"Force shut down\"> <br>"));
       myServer.print(F("<p> Status: </p> </body> </html>"));
 
-    } else if ( eeprom_read_byte( &pin_check_bad ) == 1 && tester != 1 ) {
+    } else if ( eeprom_read_byte( &pin_check_bad ) != 0 && tester != 1 ) {
       myServer.print(F("<h1> Sim pin ERROR </h1>"));
-      myServer.print(F("<forum method=\"post\"> <br> Enter new SIM PIN: <br> <input type=\"text\" name=\"newpin\" value=\""));
+      myServer.print(F("<br><form method=\"post\"> Enter new SIM PIN: <br> <input type=\"text\" name=\"newpin\" value=\""));
 
       for ( int i = 0; i < 4; i++ ) {
         myServer.print( pin[i] );
       } 
       
-      myServer.print(F("\"> <br> <input type=\"submit\" value=\"Submit\"> </forum> </body> </html>"));
+      myServer.print(F("\"> <br> <input type=\"submit\" value=\"Submit\"> </form> </body> </html>"));
         
     } else {
       tester = 0;
